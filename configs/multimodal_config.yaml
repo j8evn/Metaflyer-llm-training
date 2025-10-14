@@ -1,0 +1,61 @@
+# 멀티모달 모델 파인튜닝 설정
+
+# 모델 설정
+model:
+  name: "llava-hf/llava-1.5-7b-hf"  # LLaVA 1.5 7B
+  type: "llava"  # llava, blip2, instructblip
+  cache_dir: "./models/cache"
+
+# 데이터 설정
+data:
+  train_path: "data/multimodal_train.json"  # 멀티모달 학습 데이터
+  eval_path: "data/multimodal_eval.json"    # 멀티모달 검증 데이터
+  max_length: 512                            # 최대 시퀀스 길이
+  image_dir: "data/images"                   # 이미지 디렉토리
+
+# 학습 설정
+training:
+  output_dir: "outputs/multimodal_checkpoints"
+  num_epochs: 3
+  batch_size: 2  # 멀티모달은 메모리를 많이 사용하므로 작게
+  gradient_accumulation_steps: 8
+  learning_rate: 2.0e-5
+  warmup_steps: 100
+  save_steps: 500
+  save_total_limit: 3
+  logging_steps: 10
+
+# LoRA 설정 (멀티모달 모델 전용)
+lora:
+  use_lora: true
+  r: 16
+  lora_alpha: 32
+  lora_dropout: 0.05
+  # Vision-Language 모델의 텍스트 부분에만 LoRA 적용
+  target_modules:
+    - "q_proj"
+    - "v_proj"
+    - "k_proj"
+    - "o_proj"
+  bias: "none"
+
+# 양자화 설정
+quantization:
+  use_quantization: false  # 멀티모달 모델에서는 주의 필요
+  bits: 4
+  compute_dtype: "float16"
+
+# 이미지 전처리 설정
+image_processing:
+  resize: [224, 224]  # 이미지 리사이즈 크기
+  normalize: true      # 정규화 여부
+  augmentation: false  # 데이터 증강 (선택)
+
+# 추론 설정
+inference:
+  max_new_tokens: 256
+  temperature: 0.7
+  top_p: 0.9
+  do_sample: true
+
+

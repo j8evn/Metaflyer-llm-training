@@ -13,10 +13,28 @@ except ImportError:
     from transformers import Qwen2VLForConditionalGeneration
     MODEL_CLASS = Qwen2VLForConditionalGeneration
 
+from peft import LoraConfig, get_peft_model, TaskType
+
 # 모델과 프로세서
 MODEL_ID = "Qwen/Qwen3-VL-4B-Instruct"
 processor = AutoProcessor.from_pretrained(MODEL_ID)
-model = Qwen3VLForConditionalGeneration.from_pretrained(MODEL_ID)
+model = Qwen3VLForConditionalGeneration.from_pretrained(
+    MODEL_ID,
+    torch_dtype=torch.bfloat16,
+)
+
+# LoRA 설정
+peft_config = LoraConfig(
+    task_type=TaskType.CAUSAL_LM,
+    inference_mode=False,
+    r=8,
+    lora_alpha=32,
+    lora_dropout=0.1,
+    target_modules=["q_proj", "v_proj"]
+)
+model.enable_input_require_grads()
+model = get_peft_model(model, peft_config)
+model.print_trainable_parameters()
 
 # Dataset 정의
 class ImageTextDataset(Dataset):
@@ -36,6 +54,9 @@ class ImageTextDataset(Dataset):
         # 이미지 처리
         try:
             image = Image.open(image_path).convert("RGB")
+            # 이미지 리사이즈 (메모리 절약을 위해 최대 512px로 제한)
+            if max(image.size) > 512:
+                image.thumbnail((512, 512))
         except Exception as e:
             print(f"Error loading image {image_path}: {e}")
             # Dummy image for robustness
@@ -54,15 +75,12 @@ class ImageTextDataset(Dataset):
 
         text = processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
         
-        # Prompt 길이 계산을 위한 처리
-        prompt_inputs = processor(
+        inputs = processor(
             text=[text],
             images=[image],
-            padding=False,
+            padding=True,
             return_tensors="pt",
         )
-        prompt_length = prompt_inputs.input_ids.shape[1]
-
         full_text = text + text_output + "<|endoftext|>" 
         
         inputs = processor(
@@ -78,11 +96,7 @@ class ImageTextDataset(Dataset):
         attention_mask = inputs.attention_mask.squeeze(0)
         pixel_values = inputs.pixel_values
         image_grid_thw = inputs.image_grid_thw if "image_grid_thw" in inputs else None
-        
-        # Label Masking
         labels = input_ids.clone()
-        labels[:prompt_length] = -100  # Prompt 부분 마스킹
-        labels[input_ids == processor.tokenizer.pad_token_id] = -100 # Padding 부분 마스킹
         
         return {
             "input_ids": input_ids,
@@ -135,8 +149,9 @@ training_args = TrainingArguments(
     gradient_checkpointing=True,
     num_train_epochs=3,
     learning_rate=5e-5,
-    bf16=True,
-    fp16=False,
+    bf16=torch.backends.mps.is_available() or (torch.cuda.is_available() and torch.cuda.is_bf16_supported()),
+    fp16=torch.cuda.is_available() and not torch.cuda.is_bf16_supported(),
+    optim="adafactor", # 메모리 절약형 Optimizer
     logging_steps=5,
     save_steps=50,
     save_total_limit=2,

@@ -4,9 +4,20 @@ from peft import PeftModel
 import os
 
 # 설정
-BASE_MODEL_ID = "Qwen/Qwen3-VL-4B-Instruct"
-ADAPTER_PATH = "./output/checkpoint-21" # 학습된 LoRA 어댑터 경로 (가장 최근 체크포인트 사용 권장, 예: ./output/checkpoint-500)
+BASE_MODEL_ID = "Qwen/Qwen3-VL-30B-A3B-Thinking"
+ADAPTER_PATH = None # None으로 두면 output_full에서 가장 최신 체크포인트를 자동으로 찾습니다.
 OUTPUT_DIR = "./merged_model"
+
+# 자동으로 최신 체크포인트 찾기
+if ADAPTER_PATH is None:
+    import glob
+    checkpoints = glob.glob("./output_full/checkpoint-*")
+    if not checkpoints:
+        print("Error: No checkpoints found in ./output_full")
+        exit(1)
+    # 숫자 기준으로 정렬 (checkpoint-100, checkpoint-200 ...)
+    ADAPTER_PATH = max(checkpoints, key=lambda x: int(x.split("-")[-1]))
+    print(f"Auto-detected latest checkpoint: {ADAPTER_PATH}")
 
 print(f"Loading base model: {BASE_MODEL_ID}")
 # Base Model 로드
@@ -18,13 +29,11 @@ processor = AutoProcessor.from_pretrained(BASE_MODEL_ID)
 
 print(f"Loading LoRA adapter from: {ADAPTER_PATH}")
 # LoRA Adapter 로드 및 병합
-# 주의: output 폴더 안에 adapter_model.bin 또는 safetensors가 있어야 합니다.
-# 만약 checkpoint 폴더 안에 있다면 ADAPTER_PATH를 해당 폴더로 수정하세요.
 try:
     model = PeftModel.from_pretrained(base_model, ADAPTER_PATH)
 except Exception as e:
     print(f"Error loading adapter: {e}")
-    print("Tip: ADAPTER_PATH가 정확한지 확인하세요. (예: ./output/checkpoint-100)")
+    print(f"Tip: Check if {ADAPTER_PATH} exists and contains adapter_model.safetensors")
     exit(1)
 
 print("Merging model...")

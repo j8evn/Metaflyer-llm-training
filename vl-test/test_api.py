@@ -5,7 +5,7 @@ import sys
 
 # vLLM Server Configuration
 API_URL = "http://localhost:8100/v1/chat/completions"
-MODEL_NAME = "Qwen/Qwen3-VL-30B-A3B-Thinking" 
+MODEL_NAME = "./merged_model"
 
 def encode_image(image_path):
     with open(image_path, "rb") as image_file:

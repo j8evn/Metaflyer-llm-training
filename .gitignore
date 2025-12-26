@@ -54,6 +54,7 @@ data/*.txt
 vl-test/data/images
 vl-test/data/*.json
 vl-test/data/test_images
+vl-test/data/rejected
 
 # Output files
 outputs/

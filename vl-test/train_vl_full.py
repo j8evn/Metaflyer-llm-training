@@ -140,6 +140,7 @@ def collate_fn(batch):
 # 5. Training Arguments (H100 최적화)
 training_args = TrainingArguments(
     output_dir="./output_full",
+    overwrite_output_dir=True, # 기존 학습 결과 덮어쓰기
     per_device_train_batch_size=4,  # 배치 사이즈 증가
     gradient_accumulation_steps=4,
     gradient_checkpointing=True,    # 메모리 여유가 있어도 켜두는 게 안전 (속도 차이 크지 않음)

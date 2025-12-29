@@ -5,6 +5,3 @@ peft
 Pillow
 huggingface_hub
 torchvision
-easyocr
-opencv-python
-numpy

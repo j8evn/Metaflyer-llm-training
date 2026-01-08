@@ -10,6 +10,7 @@ from torchvision import transforms
 
 # 설정
 DATA_DIR = "data/images"
+TEST_DATA_DIR = "data/test_images"
 REJECTED_DIR = "data/rejected"
 REF_DIR = "data/reference"
 DATASET_JSON = "data/dataset.json"
@@ -121,9 +122,15 @@ def process_image(image_path, face_cascade, resnet, ref_embeddings):
         # 4. 동일인 검증 (Identity Verification)
         # 파일명에서 이름 추출 (예: data/images/아이유/아이유_001.jpg -> 아이유)
         # 폴더명이 이름이라고 가정, 혹은 파일명 앞부분
-        person_name = os.path.basename(os.path.dirname(image_path))
-        # 만약 폴더명이 없거나 파일명으로 해야한다면:
-        if not person_name or person_name == "images":
+        # test_images의 경우: data/test_images/아이유/test_아이유_001.jpg
+        # dirname으로 폴더명 추출
+        folder_name = os.path.basename(os.path.dirname(image_path))
+        
+        # 기본적으로 폴더명을 사람 이름으로 간주
+        person_name = folder_name
+        
+        # 폴더 구조가 아닐 경우 파일명에서 추출 시도 (fallback)
+        if not person_name or person_name in ["images", "test_images"]:
              person_name = os.path.basename(image_path).split('_')[0]
 
         if person_name in ref_embeddings:
@@ -168,6 +175,47 @@ def validate_and_update_dataset():
             json.dump(cleaned_data, f, indent=4, ensure_ascii=False)
         print(f"Updated dataset.json: Removed {removed_count} entries.")
 
+def process_directory(directory, face_cascade, resnet, ref_embeddings):
+    print(f"Scanning directory: {directory}...")
+    image_files = []
+    for root, dirs, files in os.walk(directory):
+        for file in files:
+            if os.path.splitext(file)[1].lower() in CHECK_EXTENSIONS:
+                image_files.append(os.path.join(root, file))
+    
+    if not image_files:
+        print(f"No images found in {directory}.")
+        return
+
+    print(f"Found {len(image_files)} images in {directory}. Processing...")
+    
+    processed_count = 0
+    success_count = 0
+    rejected_count = 0
+    
+    for image_path in tqdm(image_files):
+        success, reason = process_image(image_path, face_cascade, resnet, ref_embeddings)
+        
+        if success:
+            success_count += 1
+        else:
+            file_name = os.path.basename(image_path) # test_아이유_001.jpg
+            # 테스트 이미지의 경우 파일명 충돌 방지 혹은 구분을 위해
+            # REJECTED_DIR/reason/test_images/파일명 구조로? 
+            # 아니면 그냥 섞어버림. 여기서는 단순하게 REJECTED_DIR/reason/파일명으로 이동
+            
+            dest_dir = os.path.join(REJECTED_DIR, reason)
+            dest_path = os.path.join(dest_dir, file_name)
+            
+            # 만약 이름이 같다면? (드문 경우지만) -> 덮어쓰기 or 이름변경?
+            # shutil.move는 덮어씀.
+            shutil.move(image_path, dest_path)
+            rejected_count += 1
+        
+        processed_count += 1
+        
+    print(f"[{directory}] Total: {processed_count}, Success: {success_count}, Rejected: {rejected_count}")
+
 def main():
     print("Initializing Neural Networks...")
     face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
@@ -180,34 +228,16 @@ def main():
         print("Note: No reference images found in data/reference.")
         print("Identity verification will be skipped.")
     
-    image_files = []
-    for root, dirs, files in os.walk(DATA_DIR):
-        for file in files:
-            if os.path.splitext(file)[1].lower() in CHECK_EXTENSIONS:
-                image_files.append(os.path.join(root, file))
+    # 1. 학습 데이터 처리
+    process_directory(DATA_DIR, face_cascade, resnet, ref_embeddings)
     
-    print(f"Found {len(image_files)} images. Starting cleanup...")
+    # 2. 테스트 데이터 처리
+    if os.path.exists(TEST_DATA_DIR):
+        print("-" * 30)
+        process_directory(TEST_DATA_DIR, face_cascade, resnet, ref_embeddings)
     
-    processed_count = 0
-    success_count = 0
-    rejected_count = 0
-    
-    for image_path in tqdm(image_files):
-        success, reason = process_image(image_path, face_cascade, resnet, ref_embeddings)
-        
-        if success:
-            success_count += 1
-        else:
-            file_name = os.path.basename(image_path)
-            dest_dir = os.path.join(REJECTED_DIR, reason)
-            dest_path = os.path.join(dest_dir, file_name)
-            shutil.move(image_path, dest_path)
-            rejected_count += 1
-        
-        processed_count += 1
-
+    # 3. 데이터셋 JSON 업데이트 (학습 데이터만 해당)
     print("-" * 30)
-    print(f"Total: {processed_count}, Success: {success_count}, Rejected: {rejected_count}")
     validate_and_update_dataset()
 
 if __name__ == "__main__":

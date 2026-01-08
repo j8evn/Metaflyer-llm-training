@@ -3,7 +3,7 @@
 이 프로젝트는 **Qwen3-VL-30B** 모델을 Fine-tuning하여 특정 인물(아이유, 유재석, 제니 등)을 식별하고 설명하는 Vision-Language Model을 구축하는 것을 목표로 합니다.
 
 ## 프로젝트 개요
-- **Base Model**: `Qwen/Qwen3-VL-30B-Thinking`
+- **Base Model**: `Qwen/Qwen3-VL-30B-A3B-Instruct`
 - **Training Method**: LoRA (Low-Rank Adaptation)
 - **Hardware**: NVIDIA H100 (80GB)
 - **Serving**: vLLM (High-throughput Serving Engine)

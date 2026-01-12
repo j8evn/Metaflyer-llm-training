@@ -77,17 +77,19 @@ class ImageTextDataset(Dataset):
         inputs = processor(
             text=[text],
             images=[image],
+            max_pixels=512*512, # 이미지 토큰 수 제어 (VRAM 및 속도 최적화)
             padding=True,
             return_tensors="pt",
         )
         
-        # 정답 라벨 생성
-        full_text = text + text_output + ""
+        # 정답 라벨 생성 (EOS 토큰 추가 중요)
+        full_text = text + text_output + processor.tokenizer.eos_token
         inputs_full = processor(
             text=[full_text],
             images=[image],
+            max_pixels=512*512,
             padding="max_length",
-            max_length=2048,
+            max_length=4096,
             truncation=True,
             return_tensors="pt",
         )

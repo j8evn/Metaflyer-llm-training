@@ -70,12 +70,20 @@ for img_path in tqdm(image_files, desc="Processing"):
         filename = os.path.basename(img_path).replace(".png", "")
         
         # 메시지 구성 (Qwen3-VL 정석 포맷)
+        prompt = (
+            "이미지를 분석하여 대분류, 중분류, 소분류 키워드를 순서대로 추출해줘. "
+            "반드시 콤마(,)로 구분하여 세 개의 단어만 출력해야 해.\n\n"
+            "예시 1:\n이미지: [숲속의 다람쥐]\n출력: 동식물, 동물, 야생동물\n\n"
+            "예시 2:\n이미지: [도시 야경]\n출력: 인공물, 도시, 야경\n\n"
+            "추출:"
+        )
+        
         messages = [
             {
                 "role": "user",
                 "content": [
                     {"type": "image", "image": img_path},
-                    {"type": "text", "text": "이 이미지에서 핵심 키워드를 추출해줘."},
+                    {"type": "text", "text": prompt},
                 ],
             }
         ]
@@ -93,7 +101,7 @@ for img_path in tqdm(image_files, desc="Processing"):
 
         # 생성
         with torch.no_grad():
-            generated_ids = model.generate(**inputs, max_new_tokens=128, do_sample=False)
+            generated_ids = model.generate(**inputs, max_new_tokens=64, do_sample=False)
             generated_ids_trimmed = [
                 out_ids[len(in_ids) :] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
             ]
@@ -101,8 +109,12 @@ for img_path in tqdm(image_files, desc="Processing"):
                 generated_ids_trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=False
             )[0]
 
-            # 따옴표 및 불필요한 공백 철저히 제거
-            cleaned_keywords = [k.strip().replace("'", "").replace('"', "") for k in output_text.split(",")]
+            # 따옴표, 마침표 및 불필요한 공백 제거 후 콤마로 분리
+            output_text = output_text.strip().replace("'", "").replace('"', "").replace(".", "")
+            if ":" in output_text: # "출력: A, B, C" 형태 방어
+                output_text = output_text.split(":")[-1].strip()
+            
+            cleaned_keywords = [k.strip() for k in output_text.split(",")]
             results[filename] = {"keywords": cleaned_keywords}
 
 

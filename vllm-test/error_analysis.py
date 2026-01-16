@@ -46,5 +46,26 @@ def analyze_errors():
     print(f"3단계(소분류) 일치: {cat3_hit}건 ({cat3_hit/total*100:.2f}%)")
     print("=" * 40)
 
+    # 오답 사례 일부 출력
+    print("\n[오답 사례 (상위 10건)]")
+    error_count = 0
+    for filename, pred in data.items():
+        if error_count >= 10: break
+        
+        label_path = os.path.join(LABEL_DIR, filename + ".json")
+        if not os.path.exists(label_path): continue
+        
+        with open(label_path, "r", encoding="utf-8") as f:
+            gt_content = json.load(f).get("image", {})
+        
+        gk = [gt_content.get(f"image_category_{i}", "").strip() for i in range(1, 4)]
+        pk = [k.strip() for k in pred.get("keywords", [])]
+        
+        if pk != gk:
+            print(f"파일: {filename}")
+            print(f"  GT  : {gk}")
+            print(f"  Pred: {pk}")
+            error_count += 1
+
 if __name__ == "__main__":
     analyze_errors()

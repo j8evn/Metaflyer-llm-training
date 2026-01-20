@@ -8,30 +8,26 @@ from peft import LoraConfig, get_peft_model, TaskType
 # 1. 모델 설정 (H100용 고성능 설정)
 MODEL_ID = "Qwen/Qwen3-VL-30B-A3B-Instruct"
 
-try:
-    from transformers import Qwen3VLForConditionalGeneration
-    MODEL_CLASS = Qwen3VLForConditionalGeneration
-except ImportError:
-    from transformers import Qwen2VLForConditionalGeneration
-    MODEL_CLASS = Qwen2VLForConditionalGeneration
+from transformers import AutoModelForVision2Seq, AutoProcessor
 
-# 모델 로드 (bfloat16 사용)
+# 모델 로드 (bf16 사용)
 print(f"Loading model: {MODEL_ID}")
 processor = AutoProcessor.from_pretrained(MODEL_ID)
-model = MODEL_CLASS.from_pretrained(
+model = AutoModelForVision2Seq.from_pretrained(
     MODEL_ID,
     torch_dtype=torch.bfloat16,
-    device_map="auto", # H100에서는 auto로 설정해도 충분함 (Trainer가 알아서 처리하지만 명시적으로도 무방)
+    device_map="auto", 
+    trust_remote_code=True
 )
 
 # 2. LoRA 설정 (성능 중심)
 peft_config = LoraConfig(
     task_type=TaskType.CAUSAL_LM,
     inference_mode=False,
-    r=64,              # Rank 대폭 상향 (학습 용량 증대)
-    lora_alpha=128,    # Alpha도 상향
+    r=64,              # Rank 대폭 상향
+    lora_alpha=128,
     lora_dropout=0.05,
-    target_modules=["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"] # 모든 선형 레이어 학습
+    target_modules=["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]
 )
 model.enable_input_require_grads()
 model = get_peft_model(model, peft_config)
@@ -55,7 +51,6 @@ class ImageTextDataset(Dataset):
         # 이미지 처리
         try:
             image = Image.open(image_path).convert("RGB")
-            # H100이므로 이미지 리사이즈 제한 제거 (원본 해상도 활용)
         except Exception as e:
             print(f"Error loading image {image_path}: {e}")
             image = Image.new("RGB", (224, 224), color="black")
@@ -73,24 +68,22 @@ class ImageTextDataset(Dataset):
 
         text = processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
         
-        # 입력 처리
-        inputs = processor(
+        # 입력 처리 (Prompt 길이를 알기 위함)
+        inputs_prompt = processor(
             text=[text],
             images=[image],
-            max_pixels=512*512, # 이미지 토큰 수 제어 (VRAM 및 속도 최적화)
-            padding=True,
+            max_pixels=512*512,
             return_tensors="pt",
         )
         
-        # 정답 라벨 생성 (EOS 토큰 추가 중요)
+        # 전체 데이터 처리 (질문 + 답변)
         full_text = text + text_output + processor.tokenizer.eos_token
         inputs_full = processor(
             text=[full_text],
             images=[image],
             max_pixels=512*512,
-            padding="max_length",
-            max_length=4096,
-            truncation=True,
+            padding=False,      # Collator에서 처리
+            truncation=False,   # Truncation 금지 (이미지 토큰 유지)
             return_tensors="pt",
         )
         
@@ -98,10 +91,11 @@ class ImageTextDataset(Dataset):
         attention_mask = inputs_full.attention_mask.squeeze(0)
         labels = input_ids.clone()
         
-        # Prompt 부분 마스킹 (질문은 학습하지 않음)
-        prompt_length = inputs.input_ids.shape[1]
+        # Prompt 부분 마스킹
+        prompt_length = inputs_prompt.input_ids.shape[1]
         labels[:prompt_length] = -100
-        labels[input_ids == processor.tokenizer.pad_token_id] = -100
+        
+        # 패딩은 Collator에서 수행되므로 여기서는 -100 마스킹 불필요 (Collator에서 처리 예정)
 
         return {
             "input_ids": input_ids,

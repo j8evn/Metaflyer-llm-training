@@ -51,17 +51,21 @@ data/*.json
 data/*.csv
 data/*.txt
 !data/.gitkeep
-vl-test/data/images
-vl-test/data/*.json
-vl-test/data/test_images
-vl-test/data/rejected
+person-test/data/
+vl/test/extracted_metadata.json
+vl/test/result.json
 
 # Output files
 outputs/
 logs/
 wandb/
 runs/
-vl-test/output/
+person-test/output_full/
+vl/training/output_caption/
+vl/training/output_caption_test/
+vl/output_category/
+vl/output_category_test/
+vl/test/qwen3_vl_lora_results/
 
 # Training logs
 *.log

@@ -8,6 +8,7 @@ from PIL import Image
 from facenet_pytorch import InceptionResnetV1
 from torchvision import transforms
 
+# 설정
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(BASE_DIR, "data/train")
 TEST_DATA_DIR = os.path.join(BASE_DIR, "data/test")
@@ -47,8 +48,7 @@ def get_embedding(resnet, image_bgr):
         # To Tensor
         img_tensor = transforms.functional.to_tensor(img_pil)
         
-        # Standardize (Whiten) - FaceNet typically expects this or specific normalization
-        # facenet-pytorch's fixed_image_standardization approximates this
+        # Standardize (Whiten)
         mean, std = img_tensor.mean(), img_tensor.std()
         img_tensor = (img_tensor - mean) / std
         
@@ -69,8 +69,6 @@ def load_reference_embeddings(resnet):
     print("Loading reference images...")
     for file in os.listdir(REF_DIR):
         if os.path.splitext(file)[1].lower() in CHECK_EXTENSIONS:
-            # 파일명에서 이름 추출 (예: 아이유.jpg -> 아이유)
-            # _ref 같은 접미사는 제거하고 순수 이름만 매칭
             name = os.path.splitext(file)[0].replace("_ref", "")
             
             path = os.path.join(REF_DIR, file)
@@ -88,7 +86,6 @@ def process_image(image_path, face_cascade, resnet, ref_embeddings):
     2. 동일인 검증 (Reference가 있을 경우)
     """
     try:
-        # 1. 이미지 로드
         image_np = cv2.imread(image_path)
         if image_np is None:
             return False, "error"
@@ -96,7 +93,6 @@ def process_image(image_path, face_cascade, resnet, ref_embeddings):
         height, width = image_np.shape[:2]
         gray = cv2.cvtColor(image_np, cv2.COLOR_BGR2GRAY)
         
-        # 2. 얼굴 인식
         faces = face_cascade.detectMultiScale(
             gray,
             scaleFactor=1.1,
@@ -107,7 +103,6 @@ def process_image(image_path, face_cascade, resnet, ref_embeddings):
         if len(faces) != 1:
             return False, "face_count_mismatch"
 
-        # 3. 얼굴 크롭
         x, y, w, h = faces[0]
         margin_x = int(w * 0.5)
         margin_y = int(h * 0.5)
@@ -119,18 +114,10 @@ def process_image(image_path, face_cascade, resnet, ref_embeddings):
         
         cropped_face = image_np[start_y:end_y, start_x:end_x]
         
-        # 4. 동일인 검증 (Identity Verification)
-        # 파일명에서 이름 추출 (예: data/images/아이유/아이유_001.jpg -> 아이유)
-        # 폴더명이 이름이라고 가정, 혹은 파일명 앞부분
-        # test_images의 경우: data/test_images/아이유/test_아이유_001.jpg
-        # dirname으로 폴더명 추출
         folder_name = os.path.basename(os.path.dirname(image_path))
-        
-        # 기본적으로 폴더명을 사람 이름으로 간주
         person_name = folder_name
         
-        # 폴더 구조가 아닐 경우 파일명에서 추출 시도 (fallback)
-        if not person_name or person_name in ["images", "test_images"]:
+        if not person_name or person_name in ["train", "test"]:
              person_name = os.path.basename(image_path).split('_')[0]
 
         if person_name in ref_embeddings:
@@ -138,16 +125,11 @@ def process_image(image_path, face_cascade, resnet, ref_embeddings):
             ref_emb = ref_embeddings[person_name]
             
             if current_emb is not None:
-                # Euclidean Distance
                 dist = (current_emb - ref_emb).norm().item()
-                
-                # print(f"{os.path.basename(image_path)} distance: {dist:.4f}")
-                
-                if dist > SIMILARITY_THRESHOLD: # 거리가 멀면 다른 사람
+                if dist > SIMILARITY_THRESHOLD:
                     print(f"Mismatch: {os.path.basename(image_path)} (Dist: {dist:.2f})")
                     return False, "identity_mismatch"
 
-        # 5. 저장
         cv2.imwrite(image_path, cropped_face)
         return True, "cropped"
 
@@ -199,16 +181,11 @@ def process_directory(directory, face_cascade, resnet, ref_embeddings):
         if success:
             success_count += 1
         else:
-            file_name = os.path.basename(image_path) # test_아이유_001.jpg
-            # 테스트 이미지의 경우 파일명 충돌 방지 혹은 구분을 위해
-            # REJECTED_DIR/reason/test_images/파일명 구조로? 
-            # 아니면 그냥 섞어버림. 여기서는 단순하게 REJECTED_DIR/reason/파일명으로 이동
-            
+            file_name = os.path.basename(image_path)
             dest_dir = os.path.join(REJECTED_DIR, reason)
+            if not os.path.exists(dest_dir):
+                os.makedirs(dest_dir)
             dest_path = os.path.join(dest_dir, file_name)
-            
-            # 만약 이름이 같다면? (드문 경우지만) -> 덮어쓰기 or 이름변경?
-            # shutil.move는 덮어씀.
             shutil.move(image_path, dest_path)
             rejected_count += 1
         
@@ -228,15 +205,12 @@ def main():
         print("Note: No reference images found in data/reference.")
         print("Identity verification will be skipped.")
     
-    # 1. 학습 데이터 처리
     process_directory(DATA_DIR, face_cascade, resnet, ref_embeddings)
     
-    # 2. 테스트 데이터 처리
     if os.path.exists(TEST_DATA_DIR):
         print("-" * 30)
         process_directory(TEST_DATA_DIR, face_cascade, resnet, ref_embeddings)
     
-    # 3. 데이터셋 JSON 업데이트 (학습 데이터만 해당)
     print("-" * 30)
     validate_and_update_dataset()
 

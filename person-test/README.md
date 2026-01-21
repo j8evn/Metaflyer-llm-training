@@ -1,89 +1,67 @@
-# Vision-Language Model Fine-tuning Project
+# Vision-Language Model Fine-tuning Project (Qwen3-VL)
 
-이 프로젝트는 **Qwen3-VL-30B** 모델을 Fine-tuning하여 특정 인물(아이유, 유재석, 제니 등)을 식별하고 설명하는 Vision-Language Model을 구축하는 것을 목표로 합니다.
-
-## 프로젝트 개요
-- **Base Model**: `Qwen/Qwen3-VL-30B-A3B-Instruct`
-- **Training Method**: LoRA (Low-Rank Adaptation)
-- **Hardware**: NVIDIA H100 (80GB)
-- **Serving**: vLLM (High-throughput Serving Engine)
+이 프로젝트는 **Qwen3-VL-30B-MoE** 모델을 Fine-tuning하여 특정 인물을 식별하고 설명하는 개인화된 Vision-Language Model을 구축하는 것을 목표로 합니다.
 
 ## 디렉토리 구조
-```bash
-vl-test/
-├── data/                  # 학습 및 테스트 데이터
-│   ├── images/            # 학습용 이미지 (fetch_images.py 실행하면 생성)
-│   ├── test_images/       # 테스트용 이미지 (fetch_test_images.py 실행하면 생성)
-│   └── dataset.json       # 학습 데이터셋 메타데이터
-├── fetch_images.py        # 네이버 이미지 검색 API로 학습 데이터 수집
-├── fetch_test_images.py   # 테스트용 이미지 별도 수집
-├── train_vl_full.py       # H100용 학습 스크립트 (LoRA, bfloat16)
-├── merge_lora.py          # 학습된 LoRA 어댑터를 Base 모델과 병합
-├── test_api.py            # vLLM API 서버 테스트 클라이언트
-└── README.md              # 프로젝트 설명서
+```text
+person-test/
+├── config/             # 설정 파일 모음 (인물 리스트 등)
+├── data/               # 데이터셋 모음
+│   ├── train/          # 학습용 원본 이미지
+│   ├── test/           # 검증용 테스트 이미지
+│   └── dataset.json    # 정제된 학습 데이터셋 메타데이터
+├── scripts/            # 실행 코드 모음
+│   ├── fetch_images.py
+│   ├── preprocess_data.py
+│   ├── train.py
+│   ├── merge_lora.py
+│   └── test_api.py
+├── models/             # 결과물 모음
+│   ├── weights/        # 학습된 LoRA 어댑터 가중치
+│   └── merged/         # vLLM용 최종 병합 모델
+└── logs/               # 실행 로그 및 vLLM 로그
 ```
 
-## 실행 가이드 (Workflow)
+## 파이프라인 실행 가이드
 
-### 1. 데이터 수집 (Data Collection)
-네이버 검색 API를 사용하여 인물 이미지를 수집하고 `dataset.json`을 생성합니다.
+### 1. 설정 및 데이터 수집
+`config/people.json`에 학습할 인물 리스트를 작성한 뒤 데이터를 수집합니다. (기본 1인당 20장)
 ```bash
-python fetch_images.py
+# 1. 학습용 이미지 수집
+python scripts/fetch_images.py
+
+# 2. 테스트용 이미지 수집 (검증용)
+python scripts/fetch_test_images.py
+
+# 3. 데이터 정제 및 얼굴 인식/크롭
+python scripts/clean_data.py
 ```
-*   `data/images` 폴더에 이미지가 저장됩니다.
-*   `dataset.json`에 이미지 경로와 질문("이 인물은 누구입니까?"), 정답(이름)이 저장됩니다.
 
 ### 2. 모델 학습 (Training)
-H100 GPU를 사용하여 모델을 학습합니다. (LoRA 적용)
+H100 GPU를 사용하여 모델을 학습합니다.
 ```bash
-export CUDA_VISIBLE_DEVICES=2
-python train_vl_full.py
+python scripts/train.py
 ```
-*   학습 결과는 `output_full/` 디렉토리에 저장됩니다.
+*   학습된 LoRA 어댑터는 `models/weights/`에 저장됩니다.
 
 ### 3. 모델 병합 (Merging)
-학습된 LoRA 어댑터(`output_full/checkpoint-XXX`)를 Base 모델과 합쳐서 하나의 모델로 만듭니다.
+학습된 어댑터를 베이스 모델과 병합하여 배포용 모델을 생성합니다.
 ```bash
-python merge_lora.py
+python scripts/merge_lora.py
 ```
-*   병합된 모델은 `merged_model/` 디렉토리에 저장됩니다.
+*   최종 모델은 `models/merged/`에 저장됩니다.
 
-### 4. 서버 실행 (Serving with vLLM)
-병합된 모델을 vLLM을 사용하여 API 서버로 띄웁니다.
+### 4. 서버 서빙 및 테스트
+vLLM을 사용하여 배포하고 API 요청을 보냅니다.
 ```bash
-# 기존 vLLM 종료 (필요시)
-pkill -f vllm
+# 1. vLLM 서버 기동 (안정적인 V0 엔진 사용 권장)
+VLLM_USE_V1=0 vllm serve ./models/merged --port 8100 --gpu_memory_utilization 0.9 --trust-remote-code
 
-# 2번 GPU에 서버 실행 (메모리 점유율 90%)
-export CUDA_VISIBLE_DEVICES=2
-nohup /home/jerry/llm-serve/venv/bin/vllm serve ./merged_model \
---host 0.0.0.0 \
---port 8100 \
---tensor-parallel-size 1 \
---gpu_memory_utilization 0.9 \
---max_model_len 32768 \
---trust-remote-code \
-> vllm.log 2>&1 &
-```
-*   로그 확인: `tail -f vllm.log`
-
-### 5. 테스트 (Testing)
-API를 호출하여 모델이 인물을 잘 맞추는지 테스트합니다.
-```bash
-# 기본 테스트 (test.jpg)
-python test_api.py data/test.jpg
-
-# 특정 이미지 테스트
-python test_api.py data/test_images/아이유/test_아이유_002.jpg
+# 2. 인물 식별 테스트
+python scripts/test_api.py data/test/아이유/test_아이유_000.jpg
 ```
 
-## 주의사항 및 팁
-1.  **OOM (Out of Memory) 에러**:
-    *   vLLM과 학습 스크립트를 동시에 같은 GPU에서 돌리면 메모리가 부족합니다.
-    *   `nvidia-smi`로 비어있는 GPU를 확인하고 `CUDA_VISIBLE_DEVICES`로 지정해서 사용하세요.
-2.  **할루시네이션 (Hallucination)**:
-    *   Thinking 모델 특성상 이름 외에 불필요한 설명을 지어낼 수 있습니다.
-    *   `test_api.py`의 프롬프트를 "이름만 대답하세요"로 수정하여 제어할 수 있습니다.
-3.  **OCR 간섭**:
-    *   이미지에 글자(자막, 뉴스 헤드라인)가 있으면 얼굴보다 글자를 먼저 읽을 수 있습니다.
-    *   테스트 시 글자가 없는 깨끗한 사진을 사용하는 것이 좋습니다.
+## 💡 주요 팁
+1. **정교한 관리**: 인물 추가를 원하시면 `config/people.json`만 수정하면 모든 스크립트에 자동 반영됩니다.
+2. **배포 환경**: vLLM 0.14.0 사용 시 `VLLM_USE_V1=0` 환경 변수를 사용해야 MoE 모델 로딩 버그를 피할 수 있습니다.
+3. **데이터 보안**: 대용량 이미지와 모델 가중치는 Git에 업로드되지 않도록 `.gitignore` 설정이 되어 있습니다.

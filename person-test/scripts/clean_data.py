@@ -8,12 +8,12 @@ from PIL import Image
 from facenet_pytorch import InceptionResnetV1
 from torchvision import transforms
 
-# 설정
-DATA_DIR = "data/images"
-TEST_DATA_DIR = "data/test_images"
-REJECTED_DIR = "data/rejected"
-REF_DIR = "data/reference"
-DATASET_JSON = "data/dataset.json"
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DATA_DIR = os.path.join(BASE_DIR, "data/train")
+TEST_DATA_DIR = os.path.join(BASE_DIR, "data/test")
+REJECTED_DIR = os.path.join(BASE_DIR, "data/rejected")
+REF_DIR = os.path.join(BASE_DIR, "data/reference")
+DATASET_JSON = os.path.join(BASE_DIR, "data/dataset.json")
 CHECK_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 SIMILARITY_THRESHOLD = 0.6 # 이 값보다 거리가 멀면 거절 (0~2 사이, 낮을수록 비슷)
 

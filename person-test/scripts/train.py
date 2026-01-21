@@ -13,10 +13,10 @@ from transformers import (
 from peft import LoraConfig, get_peft_model
 from qwen_vl_utils import process_vision_info
 
-# 1. 설정 (인물 데이터 학습 전용)
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MODEL_ID = "Qwen/Qwen3-VL-30B-A3B-Instruct"
-DATA_PATH = "data/dataset.json"
-OUTPUT_DIR = "./output_full"
+DATA_PATH = os.path.join(BASE_DIR, "data/dataset.json")
+OUTPUT_DIR = os.path.join(BASE_DIR, "models/weights")
 HF_CACHE_DIR = "/dataset/cep/cache/huggingface/hub"
 
 logging.basicConfig(level=logging.INFO)

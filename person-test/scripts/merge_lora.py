@@ -3,16 +3,17 @@ from transformers import AutoProcessor, AutoModelForImageTextToText
 from peft import PeftModel
 import os
 
-# 설정
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BASE_MODEL_ID = "Qwen/Qwen3-VL-30B-A3B-Instruct"
 ADAPTER_PATH = None 
-OUTPUT_DIR = "./merged_model"
+OUTPUT_DIR = os.path.join(BASE_DIR, "models/merged")
 
 # 자동으로 어댑터 경로 찾기 (final_adapter 우선, 없으면 최신 checkpoint)
 if ADAPTER_PATH is None:
     import glob
-    final_path = "./output_full/final_adapter"
-    checkpoints = glob.glob("./output_full/checkpoint-*")
+    WEIGHTS_DIR = os.path.join(BASE_DIR, "models/weights")
+    final_path = os.path.join(WEIGHTS_DIR, "final_adapter")
+    checkpoints = glob.glob(os.path.join(WEIGHTS_DIR, "checkpoint-*"))
     
     if os.path.exists(final_path):
         ADAPTER_PATH = final_path
@@ -21,7 +22,7 @@ if ADAPTER_PATH is None:
         ADAPTER_PATH = max(checkpoints, key=lambda x: int(x.split("-")[-1]))
         print(f"Auto-detected latest checkpoint: {ADAPTER_PATH}")
     else:
-        print("Error: No adapter or checkpoints found in ./output_full")
+        print(f"Error: No adapter or checkpoints found in {WEIGHTS_DIR}")
         exit(1)
 
 print(f"Loading base model: {BASE_MODEL_ID}")

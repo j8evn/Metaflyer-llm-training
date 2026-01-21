@@ -15,7 +15,9 @@ person-test/
 │   ├── preprocess_data.py
 │   ├── train.py
 │   ├── merge_lora.py
-│   └── test_api.py
+│   ├── start_vllm.sh   # vLLM 서버 자동 실행 스크립트
+│   ├── test_api.py     # 단일 이미지 테스트
+│   └── automated_test.py # 전체 정확도 측정 자동화
 ├── models/             # 결과물 모음
 │   ├── weights/        # 학습된 LoRA 어댑터 가중치
 │   └── merged/         # vLLM용 최종 병합 모델
@@ -25,48 +27,58 @@ person-test/
 ## 파이프라인 실행 가이드
 
 ### 1. 설정 및 데이터 수집
-`config/people.json`에 학습할 인물 리스트를 작성한 뒤 데이터를 수집합니다. (기본 1인당 20장)
+`config/people.json`에 학습할 인물 리스트를 작성한 뒤 데이터를 수집합니다. (1인당 30장 권장) **이미 수집된 데이터는 건너뛰는 증분 수집을 지원합니다.**
 ```bash
-# 1. 학습용 이미지 수집
-python scripts/fetch_images.py
+# 1. 학습용 이미지 수집 (scripts 폴더에서 실행)
+python fetch_images.py
 
 # 2. 테스트용 이미지 수집 (검증용)
-python scripts/fetch_test_images.py
+python fetch_test_images.py
 
 # 3. 데이터 정제 및 얼굴 인식/크롭
-python scripts/preprocess_data.py
+python preprocess_data.py
 ```
 
 ### 2. 모델 학습 (Training)
 H100 GPU를 사용하여 모델을 학습합니다.
 ```bash
-python scripts/train.py
+# scripts 폴더에서 실행
+nohup python train.py > ../logs/train.log 2>&1 &
 ```
-*   학습된 LoRA 어댑터는 `models/weights/`에 저장됩니다.
+*   학습된 LoRA 어댑터는 `models/weights/`에 날짜별 폴더로 저장됩니다.
 
 ### 3. 모델 병합 (Merging)
 학습된 어댑터를 베이스 모델과 병합하여 배포용 모델을 생성합니다.
 ```bash
-python scripts/merge_lora.py
+python merge_lora.py
 ```
 *   최종 모델은 `models/merged/`에 저장됩니다.
 
-### 4. 서버 서빙 및 테스트
-vLLM을 사용하여 배포하고 API 요청을 보냅니다.
+### 4. 서버 서빙 (vLLM)
+백그라운드에서 서버를 띄우기 위해 쉘 스크립트를 사용합니다. (기본 Port: 18001)
 ```bash
-# 1. vLLM 서버 기동 (안격적인 V0 엔진 사용 권장, 백그라운드 실행)
-export CUDA_VISIBLE_DEVICES=1  # 사용할 GPU 번호
-nohup env VLLM_USE_V1=0 vllm serve ./models/merged \
-    --port 8100 \
-    --gpu_memory_utilization 0.9 \
-    --trust-remote-code \
-    > logs/vllm.log 2>&1 &
+cd scripts
+chmod +x start_vllm.sh
+./start_vllm.sh
+```
+*   서버 로그는 `logs/vllm_server.log`에서 실시간으로 확인할 수 있습니다.
 
-# 2. 인물 식별 테스트
-python scripts/test_api.py data/test/아이유/test_아이유_000.jpg
+### 5. 테스트 및 검증 (Testing)
+모델의 식별 성능을 두 가지 방식으로 검증합니다.
+
+#### A. 단일 이미지 콕 집어서 테스트
+```bash
+python test_api.py data/test/박나래/test_박나래_000.jpg
 ```
 
+#### B. 전체 정확도 자동 측정 (성적표 출력)
+`data/test` 폴더 안의 모든 이미지를 돌려 전체 정확도(%)를 계산하고 상세 보고서를 생성합니다.
+```bash
+python automated_test.py
+```
+*   결과 요약은 터미널에 출력되며, 상세 리포트는 `logs/test_report.json`에 저장됩니다.
+
 ## 💡 주요 팁
-1. **정교한 관리**: 인물 추가를 원하시면 `config/people.json`만 수정하면 모든 스크립트에 자동 반영됩니다.
-2. **배포 환경**: vLLM 0.14.0 사용 시 `VLLM_USE_V1=0` 환경 변수를 사용해야 MoE 모델 로딩 버그를 피할 수 있습니다.
-3. **데이터 보안**: 대용량 이미지와 모델 가중치는 Git에 업로드되지 않도록 `.gitignore` 설정이 되어 있습니다.
+1. **증분 수집**: `people.json`에 인물을 추가하고 `fetch_images.py`를 다시 돌리면, 새로 추가된 사람만 자동으로 수집하고 `dataset.json`을 동기화합니다.
+2. **vLLM 포트**: 기본 포트는 `18001`입니다. 변경이 필요하면 `scripts/start_vllm.sh`와 `scripts/test_api.py` 내부의 포트를 함께 수정하세요.
+3. **배포 환경**: vLLM 사용 시 `VLLM_USE_V1=0` 환경 변수가 적용되어 MoE 모델 로딩 이슈를 방지합니다.

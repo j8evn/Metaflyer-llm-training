@@ -10,7 +10,7 @@ API_URL = "http://localhost:18001/v1/chat/completions"
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TEST_DATA_DIR = os.path.join(BASE_DIR, "data/test")
 PEOPLE_LIST_JSON = os.path.join(BASE_DIR, "config/people.json")
-MODEL_NAME = "/dataset/cep/llm-training/person-test/merged_model"
+MODEL_NAME = "/dataset/cep/llm-training/person-test/models/merged"
 
 def encode_image(image_path):
     with open(image_path, "rb") as image_file:

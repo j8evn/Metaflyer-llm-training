@@ -5,7 +5,7 @@
 # 실행 방법: chmod +x start_vllm.sh && ./start_vllm.sh
 
 BASE_DIR=$(cd "$(dirname "$0")/.." && pwd)
-MODEL_PATH="/dataset/cep/llm-training/person-test/merged_model"
+MODEL_PATH="/dataset/cep/llm-training/person-test/models/merged"
 LOG_FILE="$BASE_DIR/logs/vllm_server.log"
 PYTHON_BIN="$BASE_DIR/venv/bin/python3"
 

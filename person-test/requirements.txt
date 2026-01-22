@@ -6,7 +6,7 @@ Pillow
 huggingface_hub
 torchvision
 opencv-python
-numpy
+numpy<2.0.0
 requests
 tqdm
 qwen-vl-utils

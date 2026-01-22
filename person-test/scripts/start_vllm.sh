@@ -7,7 +7,11 @@
 BASE_DIR=$(cd "$(dirname "$0")/.." && pwd)
 MODEL_PATH="/dataset/cep/llm-training/person-test/models/merged"
 LOG_FILE="$BASE_DIR/logs/vllm_server.log"
-PYTHON_BIN="$BASE_DIR/venv/bin/python3"
+if [ -f "$BASE_DIR/venv/bin/python3" ]; then
+    PYTHON_BIN="$BASE_DIR/venv/bin/python3"
+else
+    PYTHON_BIN="python3"
+fi
 
 mkdir -p "$BASE_DIR/logs"
 

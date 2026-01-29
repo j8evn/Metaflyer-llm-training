@@ -7,7 +7,7 @@ from io import BytesIO
 NAVER_CLIENT_ID = "UvhrrH5qgzxFlnYFmkTf"
 NAVER_CLIENT_SECRET = "ICOBFihYe7"
 API_ENDPOINT = "https://openapi.naver.com/v1/search/image"
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SAVE_DIR = os.path.join(BASE_DIR, "data/train")
 PEOPLE_LIST_JSON = os.path.join(BASE_DIR, "config/people.json")
 DATASET_JSON = os.path.join(BASE_DIR, "data/dataset.json")

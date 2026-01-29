@@ -3,7 +3,7 @@ from transformers import AutoProcessor, AutoModelForImageTextToText
 from peft import PeftModel
 import os
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 BASE_MODEL_ID = "Qwen/Qwen3-VL-30B-A3B-Instruct"
 ADAPTER_PATH = None 
 OUTPUT_DIR = os.path.join(BASE_DIR, "models/merged")

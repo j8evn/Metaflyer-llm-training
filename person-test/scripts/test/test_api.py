@@ -5,7 +5,7 @@ import sys
 
 # vLLM Server Configuration
 API_URL = "http://localhost:18001/v1/chat/completions"
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 MODEL_NAME = "/dataset/cep/llm-training/person-test/models/merged"
 
 def encode_image(image_path):

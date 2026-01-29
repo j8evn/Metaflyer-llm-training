@@ -13,7 +13,7 @@ from transformers import (
 from peft import LoraConfig, get_peft_model
 from qwen_vl_utils import process_vision_info
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 MODEL_ID = "Qwen/Qwen3-VL-30B-A3B-Instruct"
 DATA_PATH = os.path.join(BASE_DIR, "data/dataset.json")
 OUTPUT_DIR = os.path.join(BASE_DIR, "models/weights")

@@ -2,6 +2,7 @@ import requests
 import json
 import base64
 import sys
+import os
 
 # vLLM Server Configuration
 API_URL = "http://localhost:18001/v1/chat/completions"

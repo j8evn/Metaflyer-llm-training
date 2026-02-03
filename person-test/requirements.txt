@@ -12,3 +12,6 @@ tqdm
 qwen-vl-utils
 bitsandbytes
 av
+fastapi
+uvicorn
+python-multipart

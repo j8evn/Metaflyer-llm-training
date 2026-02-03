@@ -4,7 +4,8 @@ import json
 import shutil
 import asyncio
 import requests
-from typing import List
+from typing import List, Optional
+from pydantic import BaseModel
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
@@ -31,12 +32,23 @@ def encode_image(image_file):
 
 @app.post("/predict")
 async def predict_identity(
-    image: UploadFile = File(...),
-    prompt: str = Form("이 인물은 누구입니까? 판단한 시각적 근거도 함께 설명해 주세요.")
+    image: UploadFile = File(None),
+    image_url: str = Form(None),
+    prompt: str = Form('이 인물은 누구입니까?')
 ):
     try:
-        contents = await image.read()
-        base64_image = base64.b64encode(contents).decode('utf-8')
+        if image:
+            contents = await image.read()
+            base64_image = base64.b64encode(contents).decode('utf-8')
+        elif image_url:
+            if image_url.startswith("http"):
+                image_content = requests.get(image_url).content
+            else:
+                with open(image_url, "rb") as f:
+                    image_content = f.read()
+            base64_image = base64.b64encode(image_content).decode('utf-8')
+        else:
+            raise HTTPException(status_code=400, detail="Either 'image' file or 'image_url' must be provided.")
         
         payload = {
             "model": MODEL_NAME,
